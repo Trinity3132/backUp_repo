@@ -1,0 +1,14 @@
+--- dwm.c
++++ dwm.c
+@@ -442,8 +444,10 @@ buttonpress(XEvent *e)
+ 		if (i < LENGTH(tags)) {
+ 			click = ClkTagBar;
+ 			arg.ui = 1 << i;
+-		} else if (ev->x < x + TEXTW(selmon->ltsymbol))
++		} else if (ev->x < (x = (x + TEXTW(selmon->ltsymbol))))
+ 			click = ClkLtSymbol;
++		else if (ev->x < x + TEXTW(selmon->wfsymbol))
++			click = ClkFollowSymbol;
+ 		else if (ev->x > selmon->ww - (int)TEXTW(stext))
+ 			click = ClkStatusText;
+ 		else

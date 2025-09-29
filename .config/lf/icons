@@ -1,0 +1,185 @@
+
+# Core
+di     # directory
+fi     # file
+tw     # tw (socket?)
+ow     # other writable dir
+ln     # symlink
+or     # broken symlink
+ex     # executable
+
+# Text & docs
+*.txt   
+*.mom   
+*.me    
+*.ms    
+*.tex   
+*.md    
+*.pdf   
+*.djvu  
+*.epub  
+*.csv   
+*.xlsx  
+*.r     
+*.R     
+*.rmd   
+*.Rmd   
+*.m     
+*.1     
+*.nfo   
+*.info  
+*.log   
+*.bib   
+*.ged   
+
+# Images
+*.avif  
+*.png   
+*.webp  
+*.ico   
+*.jpg   
+*.jpe   
+*.jpeg  
+*.gif   
+*.svg   
+*.tif   
+*.tiff  
+*.xcf   
+
+# Web
+*.html      # HTML
+*.htm    
+*.xml       # XML
+*.css       # CSS
+*.scss      # Sass/SCSS
+*.less      # Less
+*.js        # JavaScript
+*.mjs    
+*.cjs    
+*.ts        # TypeScript
+*.tsx       # React TSX
+*.jsx       # React JSX
+*.vue       # Vue
+*.svelte    # Svelte
+*.php       # PHP
+*.erb       # ERB / Ruby templates
+*.ejs       # EJS templates
+
+# General Programming
+*.c         # C
+*.h         # C Header
+*.cpp       # C++
+*.cc     
+*.cxx    
+*.hpp    
+*.hh     
+*.rs        # Rust
+*.go        # Go
+*.java      # Java
+*.jar       # Java Archive
+*.kt        # Kotlin
+*.kts    
+*.cs        # C#
+*.swift     # Swift
+*.dart      # Dart
+*.zig       # Zig
+*.nim       # Nim
+*.vala      # Vala
+
+# Scripts
+*.sh        # Shell
+*.bash   
+*.zsh    
+*.fish   
+*.ps1       # PowerShell
+*.bat       # Batch
+*.pl        # Perl
+*.pm     
+*.t         # Perl Test
+*.rb        # Ruby
+*.py        # Python
+*.pyc    
+*.ipynb     # Jupyter
+*.r      ﳒ   # R
+*.R      ﳒ
+*.rmd    ﳒ   # R Markdown
+*.Rmd    ﳒ
+
+# Data / Config
+*.json      # JSON
+*.yml       # YAML
+*.yaml   
+*.toml   
+*.ini    
+*.conf   
+*.cfg    
+*.lock      # lockfiles
+*.env       # dotenv
+
+# Markup / Docs
+*.md        # Markdown
+*.rst       # reStructuredText
+*.tex       # LaTeX
+*.bib       # BibTeX
+
+# Build / Package
+Makefile 
+CMakeLists.txt 
+*.cmake  
+*.gradle 
+*.pom    
+*.mk     
+*.ninja  
+*.dockerfile 
+Dockerfile   
+*.yarn*  
+*.lock   
+package.json 
+tsconfig.json 
+
+# Git
+.gitignore   
+.gitattributes 
+.gitmodules  
+
+## Audio
+*.mp3   
+*.opus  
+*.ogg   
+*.m4a   
+*.flac  
+*.wav   
+
+# Video
+*.mkv   
+*.mp4   
+*.webm  
+*.mpeg  
+*.avi   
+*.mov   
+*.mpg   
+*.wmv   
+*.m4b   
+*.flv   
+
+# Archives
+*.zip   
+*.rar   
+*.7z    
+*.tar   
+
+# Disc images
+*.iso   
+*.img   
+
+# Games / ROMs
+*.z64   
+*.v64   
+*.n64   
+*.gba   
+*.nes   
+*.gdi   
+
+# Misc
+*.part  
+*.torrent 

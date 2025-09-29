@@ -1,0 +1,9 @@
+
+#!/usr/bin/sh
+
+# Reads recording status from /tmp/recordingicon
+if [ -s /tmp/recordingicon ]; then
+    cat /tmp/recordingicon
+else
+    echo ""
+fi

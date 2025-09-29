@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# sb-hdd-indicator — show status of 3 HDDs (no root)
+
+toggle_file="$HOME/.config/dwmblocks/hide_status"
+[ -f "$toggle_file" ] && [ "$(cat "$toggle_file")" -eq 1 ] && exit
+
+# HDD Mountpoints
+mounts=(
+    "/run/media/trinity3/Backup_Files"        # HDD 1
+    "/run/media/trinity3/Movies_Main"         # HDD 2
+    "/run/media/trinity3/Movies_Extension"    # HDD 3
+)
+
+# Icons
+get_icon() {
+    case "$1" in
+        *Backup_Files*) echo "" ;;     # HDD 1
+        *Movies_Main*) echo "󰋊" ;;      # HDD 2
+        *Movies_Extension*) echo "" ;; # HDD 3
+        *) echo "󰟢" ;;                 # Unknown
+    esac
+}
+
+output=""
+
+for mount in "${mounts[@]}"; do
+    icon=$(get_icon "$mount")
+    if mountpoint -q "$mount"; then
+        free=$(df -h "$mount" | awk 'NR==2 {print $4}')
+        output="$output| $icon  - $free "
+    else
+        output="$output| 󱁌  "
+    fi
+done
+
+# Trim trailing space but keep the leading pipe
+echo "${output%" "}"

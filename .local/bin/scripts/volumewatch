@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# Replace with your dwmblocks PID if needed
+pid=$(pidof dwmblocks)
+
+pactl subscribe | while read -r line; do
+	if echo "$line" | grep -q "sink"; then
+		kill -44 "$pid"  # Signal 10 is SIGRTMIN+10
+	fi
+done
+

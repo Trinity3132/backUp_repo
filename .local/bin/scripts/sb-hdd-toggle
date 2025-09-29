@@ -1,0 +1,12 @@
+#!/bin/sh
+
+toggle_file="$HOME/.config/dwmblocks/hide_status"
+[ -f "$toggle_file" ] || echo 0 > "$toggle_file"
+
+current=$(cat "$toggle_file")
+next=$((1 - current))  # toggle between 0 and 1
+echo "$next" > "$toggle_file"
+
+# Refresh dwmblocks
+pkill -RTMIN+11 dwmblocks
+

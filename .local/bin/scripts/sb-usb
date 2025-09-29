@@ -1,0 +1,23 @@
+# #!/bin/bash
+
+count_total=0
+count_mounted=0
+
+# Loop through all partitions and check if parent disk is USB
+while IFS= read -r part; do
+    parent=$(lsblk -no PKNAME "$part")
+    tran=$(lsblk -dn -o TRAN "/dev/$parent")
+    if [ "$tran" = "usb" ]; then
+        count_total=$((count_total + 1))
+        mountpoint=$(lsblk -nrpo MOUNTPOINT "$part" | tr -d '[:space:]')
+        [ -n "$mountpoint" ] && count_mounted=$((count_mounted + 1))
+    fi
+done < <(lsblk -rpno NAME,TYPE | awk '$2 == "part" {print $1}')
+
+if [ "$count_total" -eq 0 ]; then
+    echo ""
+elif [ "$count_mounted" -eq 0 ]; then
+    echo "| 󰕓 - X"
+else
+    echo "| 󰕓 - ${count_mounted}"
+fi

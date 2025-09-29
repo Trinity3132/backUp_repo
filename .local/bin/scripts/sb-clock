@@ -1,0 +1,36 @@
+
+#!/bin/sh
+
+hour=$(date '+%I')
+
+# Clock emoji based on hour
+case "$hour" in
+	"00") icon="🕛" ;;
+	"01") icon="🕐" ;;
+	"02") icon="🕑" ;;
+	"03") icon="🕒" ;;
+	"04") icon="🕓" ;;
+	"05") icon="🕔" ;;
+	"06") icon="🕕" ;;
+	"07") icon="🕖" ;;
+	"08") icon="🕗" ;;
+	"09") icon="🕘" ;;
+	"10") icon="🕙" ;;
+	"11") icon="🕚" ;;
+	"12") icon="🕛" ;;
+esac
+
+case $BLOCK_BUTTON in
+	1) notify-send "🗓 Calendar" "$(cal | sed "s/\<$(date +'%e'|tr -d ' ')\>/<b><span color='red'>&<\/span><\/b>/")" \
+	   && notify-send "📌 Appointments" "$(calcurse -d3)" ;;
+	2) setsid -f "$TERMINAL" -e calcurse ;;
+	3) notify-send "📅 Clock Module" "\
+🖱 Left: calendar + calcurse preview
+🖱 Middle: open calcurse
+🖱 Right: show this help" ;;
+	6) setsid -f "$TERMINAL" -e "$EDITOR" "$0" ;;
+esac
+
+#   MM/DD/YYYY | 🕓 HH:MM AM/PM
+printf "| %s | %s%s\n" "$(date '+%m/%d/%Y')"  "$(date '+%I:%M %p') | "
+

@@ -1,0 +1,346 @@
+#!/usr/bin/env bash
+
+# Safer script defaults
+set -o errexit  # Exit on command failure
+set -o nounset  # Exit on unset variables
+set -o pipefail # Catch pipe failures
+shopt -s nullglob # Prevent globbing of empty matches
+
+# Color codes
+BLUE=$'\033[1;34m'
+GREEN=$'\033[1;32m'
+YELLOW=$'\033[1;33m'
+RED=$'\033[1;31m'
+NC=$'\033[0m' # No Color
+
+echo -e "${BLUE}󱓧 Starting Full System Maintenance...${NC}"
+
+### 🔐 Confirmation
+read -rp "${BLUE}󰀘 Proceed with maintenance? (y/N): ${NC}" answer
+[[ "${answer,,}" =~ ^(y|yes)$ ]] || { echo -e "${RED} Cancelled.${NC}"; exit 1; }
+
+### 󰚰 System Update
+echo -e "\n${BLUE}󰚰 Updating system...${NC}"
+if sudo pacman -Syu --noconfirm; then
+    echo -e "${GREEN}✅ Update complete.${NC}"
+else
+    echo -e "${RED}❌ Failed to update. Consider manual intervention.${NC}"
+    exit 1
+fi
+
+### 󰈈 Unmount External Drives
+echo -e "\n${BLUE}󰈈 Unmounting external drives...${NC}"
+found_disks=0
+rootdev=$(findmnt -n -o SOURCE /)
+rootdev_base="${rootdev%%[0-9]*}"
+
+while IFS= read -r -d '' disk; do
+    [[ "$disk" == "$rootdev_base"* ]] && continue
+
+    mountpoints=$(lsblk -nr -o MOUNTPOINT "$disk" | grep -v '^$' || true)
+    if [[ -n "$mountpoints" ]]; then
+        found_disks=1
+        for mnt in $mountpoints; do
+            echo -e "${BLUE}   Unmounting $mnt${NC}"
+            if sudo umount -v "$mnt"; then
+                echo -e "${GREEN}   Successfully unmounted $mnt${NC}"
+            else
+                echo -e "${RED}  ⚠️ Failed to unmount $mnt${NC}"
+            fi
+        done
+    fi
+done < <(find /dev -maxdepth 1 \( -name 'sd?*' -o -name 'nvme?n?*' \) -print0)
+
+[[ "$found_disks" -eq 0 ]] && echo -e "${GREEN}   No external drives to unmount.${NC}"
+
+###  Clear Cache
+echo -e "\n${BLUE} Clearing memory cache...${NC}"
+if sudo sync && echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null; then
+    echo -e "${GREEN}✅ Cache cleared.${NC}"
+else
+    echo -e "${RED}❌ Failed to clear cache.${NC}"
+fi
+
+###  Check Disks
+echo -e "\n${BLUE} Checking disks for SMART and FS errors...${NC}"
+
+# Check for smartmontools
+if ! command -v smartctl &>/dev/null; then
+    echo -e "${YELLOW}   smartctl not installed${NC}"
+    echo -e "${BLUE}   Run: sudo pacman -S smartmontools${NC}"
+fi
+
+for dev in /dev/sd? /dev/nvme?n?; do
+    [[ ! -b "$dev" ]] && continue
+    [[ "$dev" == "$rootdev_base"* ]] && continue
+
+    echo -e "\n${BLUE}   Checking $dev...${NC}"
+
+    # Partition table check
+    echo -e "${BLUE}   Checking partition table...${NC}"
+    partition_info=$(sudo fdisk -l "$dev" 2>/dev/null | grep -E "^/dev/")
+    if [[ -n "$partition_info" ]]; then
+        echo "$partition_info" | while read -r line; do
+            echo -e "${GREEN}   $line${NC}"
+        done
+        echo -e "${GREEN}   Partition table readable${NC}"
+
+        if sudo fdisk -l "$dev" 2>&1 | grep -q "does not start on physical sector boundary"; then
+            echo -e "${YELLOW}   Warning: Partition not aligned to physical sectors${NC}"
+            echo -e "${BLUE}   Consider realigning for optimal performance${NC}"
+        fi
+    else
+        echo -e "${YELLOW}  ⚠️ Partition table check failed${NC}"
+    fi
+
+    # SMART check
+    if command -v smartctl &>/dev/null; then
+        echo -e "${BLUE}   Running SMART check...${NC}"
+        smart_result=$(sudo smartctl -H "$dev")
+        echo "$smart_result" | grep -E "^SMART|^===|^Test"
+
+        if echo "$smart_result" | grep -q "PASSED"; then
+            echo -e "${GREEN}   SMART status: Healthy${NC}"
+
+            # Show critical attributes
+            echo -e "${BLUE}   Key attributes:${NC}"
+            sudo smartctl -A "$dev" | grep -E "^  5|^ 10|^184|^187|^188|^197|^198" | awk -v yellow="${YELLOW}" -v green="${GREEN}" -v nc="${NC}" \
+                '{if ($2 > 0) print "  " yellow "⚠️ " $0 nc; else print "  " green " " $0 nc}'
+        else
+            echo -e "${RED}  ⚠️ SMART check failed/unsupported${NC}"
+        fi
+    fi
+
+    # Filesystem check for partitions only
+    partitions=$(lsblk -lnpo NAME "$dev" | grep -v "^$dev$")
+    if [[ -n "$partitions" ]]; then
+        for part in $partitions; do
+            read -rp "${BLUE}   Run filesystem check on $part? (y/N): ${NC}" fsck_ans
+            if [[ "${fsck_ans,,}" =~ ^(y|yes)$ ]]; then
+                echo -e "${BLUE}   Checking filesystem on $part...${NC}"
+
+                fstype=$(lsblk -no FSTYPE "$part")
+                if [[ -z "$fstype" ]]; then
+                    echo -e "${YELLOW}   No filesystem detected${NC}"
+                    continue
+                fi
+
+                echo -e "${BLUE}   Detected filesystem: $fstype${NC}"
+
+                case "$fstype" in
+                    ext*)
+                        echo -e "${BLUE}   Running fsck for ext filesystem...${NC}"
+                        if sudo fsck -y "$part"; then
+                            echo -e "${GREEN}   Filesystem check passed${NC}"
+                        else
+                            echo -e "${YELLOW}   Trying alternate superblocks...${NC}"
+                            for superblock in 8193 32768 16384; do
+                                echo -e "${BLUE}   Trying superblock $superblock...${NC}"
+                                if sudo fsck -b $superblock -y "$part"; then
+                                    echo -e "${GREEN}   Recovery using superblock $superblock succeeded${NC}"
+                                    break
+                                fi
+                            done
+                        fi
+                        ;;
+                    btrfs)
+                        echo -e "${BLUE}   Running btrfs check...${NC}"
+                        sudo btrfs check --progress "$part" || echo -e "${RED}  ⚠️ Btrfs check found issues${NC}"
+                        ;;
+                    *)
+                        echo -e "${YELLOW}   Unsupported filesystem for automatic repair: $fstype${NC}"
+                        ;;
+                esac
+
+                if sudo fsck -n "$part"; then
+                    echo -e "${GREEN}   Filesystem now valid${NC}"
+                else
+                    echo -e "${RED}   Filesystem still has errors - may need manual repair${NC}"
+                fi
+            fi
+        done
+    else
+        echo -e "${GREEN}   No partitions found for checking${NC}"
+    fi
+done
+echo -e "${GREEN}✅ Disk check complete.${NC}"
+
+###  System Cleanup
+echo -e "\n${BLUE} System Cleanup...${NC}"
+
+# 1. Orphaned Packages
+echo -e "${BLUE}   Removing orphaned packages...${NC}"
+if orphans=$(pacman -Qtdq 2>/dev/null) && [[ -n "$orphans" ]]; then
+    echo -e "${BLUE}   Found orphans: $(echo "$orphans" | wc -l) package(s)${NC}"
+    sudo pacman -Rns --noconfirm $orphans
+    echo -e "${GREEN}  ✅ Orphans removed.${NC}"
+else
+    echo -e "${GREEN}   No orphaned packages found.${NC}"
+fi
+
+# 2. Pacman Cache
+echo -e "${BLUE}   Clearing pacman cache...${NC}"
+if command -v paccache &>/dev/null; then
+    sudo paccache -rk2
+    echo -e "${GREEN}  ✅ Pacman cache cleaned.${NC}"
+else
+    echo -e "${YELLOW}   paccache not found${NC}"
+    echo -e "${BLUE}   Run: sudo pacman -S pacman-contrib${NC}"
+    sudo pacman -Sc --noconfirm
+    echo -e "${GREEN}  ✅ Manual cache cleanup complete.${NC}"
+fi
+
+# 3. AUR Helper Cache
+echo -e "${BLUE}   Cleaning AUR helper caches...${NC}"
+for aur_helper in yay paru; do
+    if command -v "$aur_helper" &>/dev/null; then
+        read -rp "${BLUE}   Clear cache for $aur_helper? (y/N): ${NC}" aur_clean
+        if [[ "${aur_clean,,}" =~ ^(y|yes)$ ]]; then
+            case "$aur_helper" in
+                yay)
+                    yay -Sc --noconfirm
+                    echo -e "${GREEN}   yay cache cleared${NC}"
+                    ;;
+                paru)
+                    paru -Sc --noconfirm
+                    echo -e "${GREEN}   paru cache cleared${NC}"
+                    ;;
+            esac
+        else
+            echo -e "${GREEN}   Skipped $aur_helper cache cleaning${NC}"
+        fi
+    fi
+done
+
+# 4. Journal Logs
+echo -e "${BLUE}   Vacuuming journal logs...${NC}"
+sudo journalctl --vacuum-size=100M --vacuum-time=7d 2>/dev/null || \
+    echo -e "${RED}  ⚠️ Failed to vacuum journal logs${NC}"
+
+# 5. Temp Files
+echo -e "${BLUE}   Clearing /tmp...${NC}"
+sudo find /tmp -mindepth 1 -delete -print 2>/dev/null | head -n 10
+echo -e "${GREEN}   /tmp cleaned${NC}"
+
+# 6. User Trash
+if command -v trash-empty &>/dev/null; then
+    echo -e "${BLUE}   Emptying user trash...${NC}"
+    trash-empty 7
+    echo -e "${GREEN}   User trash emptied${NC}"
+else
+    echo -e "${YELLOW}   trash-cli not installed${NC}"
+    echo -e "${BLUE}   Run: sudo pacman -S trash-cli${NC}"
+fi
+
+echo -e "${GREEN}✅ Cleanup complete.${NC}"
+
+###  Backup
+echo -e "\n${BLUE} Backup Options:${NC}"
+echo "  [1]  Timeshift snapshot"
+echo "  [2]  Rsync dotfiles"
+echo "  [3]  Skip"
+read -rp "${BLUE} Choose backup option [1-3]: ${NC}" backup_choice
+
+case "$backup_choice" in
+    1)
+        if ! command -v timeshift &>/dev/null; then
+            echo -e "${RED}  ❌ Timeshift not installed!${NC}"
+            echo -e "${BLUE}   Install with: sudo pacman -S timeshift${NC}"
+        else
+            read -rp "${BLUE}   Enter backup device (e.g. /dev/sdb1): ${NC}" backup_dev
+            sudo mkdir -p /mnt/BackupDrive
+            if sudo mount "$backup_dev" /mnt/BackupDrive; then
+                echo -e "${BLUE}   Running Timeshift snapshot...${NC}"
+                if sudo timeshift --create --comments "Auto backup from maintenance.sh" --tags D; then
+                    echo -e "${GREEN}  ✅ Timeshift backup complete.${NC}"
+                else
+                    echo -e "${RED}  ❌ Timeshift backup failed!${NC}"
+                fi
+                sudo umount /mnt/BackupDrive
+            else
+                echo -e "${RED}  ❌ Failed to mount device for backup.${NC}"
+            fi
+        fi
+        ;;
+    2)
+        BACKUP_DIR="${HOME}/backups/dotfiles-$(date +%Y%m%d-%H%M)"
+        echo -e "${BLUE}   Backing up dotfiles to $BACKUP_DIR${NC}"
+        mkdir -p "$BACKUP_DIR"
+        rsync -a --progress --human-readable \
+            ~/{.config,.bashrc,.zshrc,.local/bin,.ssh} \
+            "$BACKUP_DIR/"
+        echo -e "${GREEN}  ✅ Dotfiles backed up. Size: $(du -sh "$BACKUP_DIR" | cut -f1)${NC}"
+        ;;
+    *)
+        echo -e "${GREEN}   Skipped backup.${NC}"
+        ;;
+esac
+
+### 󰀦 Optional ClamAV Scan
+if command -v clamscan &>/dev/null; then
+    echo -e "\n${BLUE}󰀦 Optional Virus Scan${NC}"
+    read -rp "${BLUE}   Run ClamAV virus scan? (This may take hours) (y/N): ${NC}" run_clamav
+    
+    if [[ "${run_clamav,,}" =~ ^(y|yes)$ ]]; then
+        echo -e "${BLUE}  󰁫 Starting scan (excluding system directories)...${NC}"
+        
+        # Update signatures first
+        echo -e "${BLUE}   Updating virus definitions...${NC}"
+        sudo freshclam || echo -e "${YELLOW}  ⚠️ Continuing with existing definitions${NC}"
+        
+        # Setup with proper permissions
+        QUARANTINE="/root/clamav-quarantine"
+        SCAN_LOG="/var/log/clamav-scan-$(date +%Y%m%d).log"
+        
+        # Ensure proper permissions for log file
+        sudo mkdir -p "$QUARANTINE"
+        sudo touch "$SCAN_LOG"
+        sudo chown clamav:clamav "$SCAN_LOG"
+        sudo chmod 644 "$SCAN_LOG"
+        
+        # Run scan with detailed logging
+        echo -e "${BLUE}   Scanning to: $SCAN_LOG${NC}"
+        sudo clamscan -r / \
+            --exclude-dir="^/proc" \
+            --exclude-dir="^/sys" \
+            --exclude-dir="^/dev" \
+            --exclude-dir="^/run" \
+            --move="$QUARANTINE" \
+            --max-filesize=100M \
+            --log="$SCAN_LOG"
+        
+        # Display results with proper permission handling
+        echo -e "\n${BLUE}󰀦 Scan Summary:${NC}"
+        if sudo test -r "$SCAN_LOG"; then
+            sudo tail -n 11 "$SCAN_LOG" | grep -E "SCAN SUMMARY|Infected|Scanned|Time:|Data scanned:"
+            
+            if sudo grep -q "Infected files: 0" "$SCAN_LOG"; then
+                echo -e "${GREEN}  ✅ No viruses detected${NC}"
+            else
+                INFECTED=$(sudo grep "Infected files:" "$SCAN_LOG" | awk '{print $3}')
+                echo -e "${RED}  ⚠️ $INFECTED infected files found!${NC}"
+                echo -e "${YELLOW}   Quarantined to: $QUARANTINE${NC}"
+            fi
+        else
+            echo -e "${RED}  ❌ Could not read scan log${NC}"
+            echo -e "${YELLOW}   Try: sudo cat $SCAN_LOG${NC}"
+        fi
+    else
+        echo -e "${GREEN}   Skipped virus scan${NC}"
+    fi
+else
+    echo -e "${YELLOW}   ClamAV not installed${NC}"
+    echo -e "${BLUE}   Install with: sudo pacman -S clamav${NC}"
+fi
+
+###  System Report
+echo -e "\n${BLUE} System Report:${NC}"
+echo -e "⚡ CPU Load: $(uptime | awk -F'load average: ' '{print $2}')"
+echo -e "🧠 Memory: $(free -h | awk '/Mem:/ {print $3"/"$2}')"
+echo -e "💾 Disk Usage:"
+df -h / | awk 'NR==1 || $NF=="/"'
+echo -e "🌐 Network: $(ip a | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)"
+
+### ✅ Done
+echo -e "\n${GREEN} Maintenance tasks completed at $(date)${NC}"
+echo -e "${GREEN}✅ Maintenance complete. Your system is optimized!${NC}"

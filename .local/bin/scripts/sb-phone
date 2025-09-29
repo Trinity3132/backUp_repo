@@ -1,0 +1,10 @@
+#!/bin/bash
+
+MTP_MOUNT="$HOME/Phone"
+
+if mount | grep -q "$MTP_MOUNT"; then
+    echo "|  󰄜"
+else
+    echo ""
+fi
+

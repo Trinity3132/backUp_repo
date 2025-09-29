@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Replace with your actual interface if needed
+iface=$(ip link | awk -F: '/^[0-9]+: e/{print $2}' | tr -d ' ')
+
+if [ -z "$iface" ]; then
+    echo ""
+    exit
+fi
+
+state=$(cat /sys/class/net/"$iface"/operstate)
+
+if [ "$state" = "up" ]; then
+    echo "| 󰌘 "
+else
+    echo "| 󰌙 "
+fi
+

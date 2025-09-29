@@ -1,0 +1,327 @@
+set icons true
+# =========================
+# Basic Configuration
+# =========================
+set shellopts '-eu'
+set ifs "\n"
+set period 1
+set hiddenfiles ".*:*.aux:*.log:*.bbl:*.bcf:*.blg:*.run.xml"
+set cleaner '~/.config/lf/cleaner'
+set previewer '~/.config/lf/scope'
+set autoquit true
+
+# =========================
+# File Opening
+# =========================
+cmd open ${{
+    fx="$(readlink -f "$f")"
+    filetype="$(file -Lb --mime-type -- "$f")"
+    ext="${f##*.}"
+    size=$(du -h --apparent-size -- "$f" | cut -f1)
+
+    # Nerd Font Icons
+    icon="" # default
+    case "$filetype" in
+        image/*) icon="󰋩" ;;
+        video/*) icon="󰕧" ;;
+        audio/*) icon="󰎆" ;;
+        text/*) icon="󰈙" ;;
+        application/pdf) icon="󰈦" ;;
+        application/zip|application/x-*zip*|application/x-7z-compressed|application/x-rar) icon="" ;;
+        application/json) icon="󰘦" ;;
+        *) case "$ext" in
+            md|markdown) icon="" ;;
+            sh|bash|zsh) icon="" ;;
+            html|css|js) icon="󰌝" ;;
+            py) icon="" ;;
+            c|cpp|h|hpp) icon="" ;;
+            docx|odt|rtf) icon="󰈬" ;;
+            xls|xlsx|ods) icon="󰃬" ;;
+            ppt|pptx|odp) icon="󰅩" ;;
+        esac ;;
+    esac
+
+    clear
+    tput cup $(($(tput lines)/3)); tput bold
+    echo "$icon File: $fx"
+    echo "󰈡 Type: $filetype"
+    echo " Extension: .$ext"
+    echo "󰍛 Size: $size"
+    echo
+    echo -n " Proceed to open this file? [y/N]: "
+    read -r confirm
+    [ "$confirm" != "y" ] && exit
+
+    case "$filetype" in
+        application/pdf|image/vnd.djvu|application/epub+zip|application/x-fictionbook+xml)
+            setsid -f zathura "$fx" >/dev/null 2>&1 ;;
+        text/*|application/json|application/x-shellscript|application/x-subrip|inode/x-empty)
+            setsid -f st -e nvim "$fx" >/dev/null 2>&1 ;;
+        *)
+            case "$ext" in
+                txt|md|markdown|csv|tex|log|conf|ini|nfo|yaml|yml|json|xml|toml|sh|bash|zsh|c|cpp|h|hpp|py|rb|pl|lua|rs|go|ts|tsx|js|jsx|php|html|css|scss|sql|asm)
+                    "$EDITOR" "$fx" ;;
+                jpg|jpeg|png|gif|webp|avif|bmp|ico|tif|tiff|svg|xpm|xcf)
+                    setsid -f nsxiv -a "$fx" >/dev/null 2>&1 ;;
+                mp3|ogg|opus|wav|flac|m4a)
+                    setsid -f mpv --audio-display=no "$fx" >/dev/null 2>&1 ;;
+                mp4|mkv|webm|mov|avi|mpeg|mpg|wmv|flv|m4b)
+                    setsid -f mpv "$fx" >/dev/null 2>&1 ;;
+                doc|docx|odt|ods|odp|ppt|pptx|xls|xlsx|rtf|odg|odf)
+                    setsid -f libreoffice "$fx" >/dev/null 2>&1 ;;
+                zip|tar|gz|bz2|xz|7z|rar|tar.gz|tar.xz|tar.bz2|tgz|tbz2)
+                    clear
+                    tput cup $(($(tput lines)/3)); tput bold
+                    echo " Archive detected: $f"
+                    echo -n "󰛶 Extract instead? [y/N]: "
+                    read extract
+                    [ "$extract" = "y" ] && lf -remote "send $id extractto" ;;
+                iso|img)
+                    echo " $f is a disk image."
+                    sleep 1 ;;
+                *)
+                    setsid -f "$OPENER" "$fx" >/dev/null 2>&1 ;;
+            esac ;;
+    esac
+}}
+
+# =========================
+# File Operations
+# =========================
+cmd mkdir %{{
+    read -p "Directory name: " dir
+    [ -n "$dir" ] && mkdir -p -- "$dir"
+}}
+
+cmd mkfile ${{
+    clear
+    tput cup $(($(tput lines)/3))
+    tput bold
+    echo "Create New File"
+    tput sgr0
+    echo
+    read -p "File name: " filename
+    [ -z "$filename" ] && exit
+
+    if [ -e "$filename" ]; then
+        echo "❌ File already exists!"
+    else
+        touch -- "$filename" &&
+            echo "✅ Created: $filename" ||
+            echo "❌ Failed to create file."
+    fi
+
+    read -n 1 -s -r -p "Press any key to continue..."
+}}
+
+# =========================
+# Compression & Extraction
+# =========================
+cmd compress ${{
+    clear
+    tput cup $(($(tput lines)/3))
+    tput bold
+    echo "Selected:"
+    printf "\t%s\n" "$fx"
+    echo -n "Enter archive name (without extension): "
+    read archive
+    echo -n "Choose format [zip/tar.gz/7z]: "
+    read fmt
+
+    case "$fmt" in
+        zip)    zip -r "${archive}.zip" $fx ;;
+        tar.gz) tar -czvf "${archive}.tar.gz" $fx ;;
+        7z)     7z a "${archive}.7z" $fx ;;
+        *)      echo "Unsupported format."
+                read -n1 -rsp $'Press any key to continue...\n' ;;
+    esac
+}}
+
+cmd extractto ${{
+    clear
+    tput cup $(($(tput lines)/3))
+    tput bold
+    echo "Extracting:"
+    printf "\t%s\n" "$fx"
+    echo -n "Enter directory to extract into: "
+    read target
+    mkdir -p "$target" || exit
+
+    case "$fx" in
+        *.tar.bz2)   tar -xvjf "$fx" -C "$target" ;;
+        *.tar.gz)    tar -xvzf "$fx" -C "$target" ;;
+        *.bz2)       bunzip2 -c "$fx" > "$target/${fx%.*}" ;;
+        *.rar)       unrar x "$fx" "$target/" ;;
+        *.gz)        gunzip -c "$fx" > "$target/${fx%.*}" ;;
+        *.tar)       tar -xvf "$fx" -C "$target" ;;
+        *.tbz2)      tar -xvjf "$fx" -C "$target" ;;
+        *.tgz)       tar -xvzf "$fx" -C "$target" ;;
+        *.zip)       unzip "$fx" -d "$target" ;;
+        *.Z)         uncompress -c "$fx" > "$target/${fx%.*}" ;;
+        *.7z)        7z x "$fx" -o"$target" ;;
+        *.tar.xz)    tar -xvf "$fx" -C "$target" ;;
+        *.xz)        unxz -c "$fx" > "$target/${fx%.*}" ;;
+        *.lz)        lzip -cd "$fx" > "$target/${fx%.*}" ;;
+        *.zst)       unzstd -c "$fx" > "$target/${fx%.*}" ;;
+        *)           echo "Unknown archive format: $fx"
+                     read -n1 -rsp $'Press any key to continue...\n' ;;
+    esac
+}}
+
+# =========================
+# Trash Management
+# =========================
+cmd trash ${{
+    clear
+    tput cup $(($(tput lines)/3))
+    tput bold
+    echo "Move to trash:"
+    printf "\t%s\n" "$fx"
+    tput sgr0
+    echo
+    printf "Send to trash? [y/N]: "
+    read ans
+    [ "$ans" = "y" ] && {
+        trash-put $fx
+        echo "Moved to trash."
+        sleep 1
+    }
+}}
+
+cmd emptytrash ${{
+    clear; tput cup $(($(tput lines)/3)); tput bold
+    echo "⚠️  This will permanently delete all trashed files."
+    echo "Proceed? [y/N]"
+    read -r ans
+    [ "$ans" = "y" ] && trash-empty
+}}
+
+# =========================
+# Move / Copy / Rename
+# =========================
+cmd moveto ${{
+    set -f
+    clear; tput cup $(($(tput lines)/3)); tput bold
+    dest=$(fd . / --type d --hidden --exclude .git --exclude node_modules 2>/dev/null | fzf --layout=reverse --height 40% --prompt 'Move to where? ')
+    [ -z "$dest" ] && exit
+
+    clear; tput cup $(($(tput lines)/3)); tput bold
+    echo "From:"
+    echo "$fx" | sed 's/^/   /'
+    printf "To:\n   %s\n\n\tmove?[y/N] " "$dest"
+    read -r ans
+    [ "$ans" != "y" ] && exit
+
+    success=true
+    for x in $fx; do
+        if rsync -a --info=progress2 "$x" "$dest/"; then
+            rm -rf -- "$x"
+        else
+            success=false
+            echo "❌ Failed to move $x"
+        fi
+    done
+
+    if $success; then
+        echo -e "\n✅ File(s) moved to: $dest"
+    else
+        echo -e "\n⚠️  Some files may not have moved successfully."
+    fi
+
+    read -n 1 -s -r -p "Press any key to continue..."
+}}
+
+cmd copyto ${{
+    set -f
+    clear; tput cup $(($(tput lines)/3))
+    dest=$(fd --type d --hidden --exclude .git . ~ | fzf --layout=reverse --height=40% --prompt='Copy to where? ')
+    [ -z "$dest" ] && exit
+    destpath=$(eval printf '%s' \"$dest\")
+
+    clear; tput cup $(($(tput lines)/3)); tput bold
+    echo "From:"
+    echo "$fx" | sed 's/^/   /'
+    printf "To:\n   %s\n\n\tcopy?[y/N] " "$destpath"
+    read -r ans
+    [ "$ans" != "y" ] && exit
+
+    errors=0
+    for x in $fx; do
+        rsync -ah --info=progress2 "$x" "$destpath/" || errors=1
+    done
+
+    if [ "$errors" -eq 0 ]; then
+        echo -e "\n✅ Copy complete to $destpath"
+    else
+        echo -e "\n❌ Some files failed to copy."
+    fi
+
+    read -n 1 -s -r -p "Press any key to continue..."
+}}
+
+cmd rename ${{
+    clear
+    tput cup $(($(tput lines)/3))
+    tput bold
+
+    icon="󰈔"
+    case "$(file -b --mime-type -- "$f")" in
+        image/*)      icon="󰉏" ;;
+        video/*)      icon="󰕧" ;;
+        audio/*)      icon="󰎇" ;;
+        application/pdf) icon="" ;;
+        text/*)       icon="󰈙" ;;
+        application/zip|application/x-*tar*|application/x-7z-compressed|application/x-rar) icon="󰁯" ;;
+        *) [ -d "$f" ] && icon="" ;;
+    esac
+
+    name="$(basename -- "$f")"
+    size="$(du -h -- "$f" | cut -f1)"
+    type="$(file -b -- "$f")"
+
+    echo "$icon  Rename"
+    echo "  Name: $name"
+    echo "  Size: $size"
+    echo "󰩹  Type: $type"
+    echo
+    read -p "  New name: " newname
+    [ -z "$newname" ] && exit
+
+    mv -- "$f" "$(dirname -- "$f")/$newname" &&
+        echo -e "\n✅ 󰄬 Renamed to: $newname" ||
+        echo -e "\n❌ 󰅙 Failed to rename."
+
+    read -n 1 -s -r -p "Press any key to continue..."
+}}
+
+# =========================
+# Search (fzf)
+# =========================
+cmd fzf_local ${{
+    result=$(fd --hidden --exclude .git . | fzf --height 40% --layout=reverse --ansi \
+        --preview 'bat --style=numbers --color=always {} 2>/dev/null || tree -C {} | head -200')
+    [ -n "$result" ] && lf -remote "send $id select \"$result\""
+}}
+
+cmd fzf_global ${{
+    result=$(fd --hidden --exclude .git . ~ | fzf --height 40% --layout=reverse --ansi \
+        --preview 'bat --style=numbers --color=always {} 2>/dev/null || tree -C {} | head -200')
+    [ -n "$result" ] && lf -remote "send $id select \"$result\""
+}}
+
+# =========================
+# Keybindings
+# =========================
+map <c-c> copyto
+map <c-x> moveto
+map R rename
+map C compress
+map E extractto
+map <delete> trash
+map <c-t> emptytrash
+map <c-n> mkdir
+map <a-n> mkfile
+map f fzf_local
+map F fzf_global
+map U :clear
+map <enter> open

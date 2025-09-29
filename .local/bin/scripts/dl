@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# Nerd Font icons
+ICON_FOLDER=""
+ICON_DOWNLOAD=""
+ICON_SUCCESS=""
+ICON_WARN=""
+ICON_ERROR=""
+ICON_INFO=""
+ICON_INPUT=""
+ICON_VIDEO=""
+ICON_AUDIO=""
+ICON_CLOCK=""
+ICON_TITLE="󰗴"
+ICON_RES=""
+
+# Check dependencies
+for cmd in yt-dlp ffmpeg jq; do
+  command -v "$cmd" >/dev/null 2>&1 || {
+    echo "$ICON_ERROR $cmd not installed."
+    exit 1
+  }
+done
+
+# Input URL
+URL="$1"
+[[ -z "$URL" ]] && {
+  echo "$ICON_WARN Usage: dl <url>"
+  echo "$ICON_INFO Example: dl https://youtu.be/abc123"
+  exit 1
+}
+
+# Get metadata
+META=$(yt-dlp -j "$URL")
+[[ -z "$META" ]] && { echo "$ICON_ERROR Failed to fetch metadata."; exit 1; }
+
+TITLE=$(echo "$META" | jq -r '.title')
+DURATION=$(echo "$META" | jq -r '.duration' | awk '{print int($1/60) "m " int($1%60) "s"}')
+RESOLUTION=$(echo "$META" |
+  jq -r '.formats[] | select(.vcodec != "none" and .acodec == "none") | .height' |
+  sort -nr | head -n1)
+AUDIOCODEC=$(echo "$META" | jq -r '.acodec')
+VIDEOCODEC=$(echo "$META" | jq -r '.vcodec')
+
+# Show preview
+echo ""
+echo "$ICON_TITLE  :  $TITLE"
+echo "$ICON_CLOCK  :  $DURATION"
+echo "$ICON_RES  :  ${RESOLUTION}p"
+echo "$ICON_VIDEO  :  ${VIDEOCODEC:-unknown}"
+echo "$ICON_AUDIO  :  ${AUDIOCODEC:-unknown}"
+echo "$ICON_INFO  :  bestvideo+bestaudio → mp4"
+echo ""
+
+# Confirm before downloading
+read -rp "$ICON_INPUT  Proceed to download? (y/N): " CONFIRM
+[[ ! "$CONFIRM" =~ ^[Yy]$ ]] && { echo "$ICON_WARN Cancelled."; exit 0; }
+
+# Choose download folder
+read -erp "$ICON_FOLDER  Save to (default: ~/Downloads/Videos): " CUSTOM_DIR
+SAVE_DIR="${CUSTOM_DIR:-$HOME/Downloads/Videos}"
+mkdir -p "$SAVE_DIR"
+
+# Subtitles option
+read -rp "$ICON_INPUT  Download subtitles? (y/N): " GET_SUBS
+SUB_OPTS=""
+[[ "$GET_SUBS" =~ ^[Yy]$ ]] && SUB_OPTS="--write-subs --write-auto-subs --sub-lang en"
+
+# Download
+echo ""
+echo "$ICON_DOWNLOAD Downloading best video+audio..."
+yt-dlp -f "bv+ba" --merge-output-format mp4 $SUB_OPTS -o "$SAVE_DIR/%(title)s.%(ext)s" "$URL"
+
+echo "$ICON_SUCCESS Done."
+

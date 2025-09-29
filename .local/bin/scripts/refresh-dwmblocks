@@ -1,0 +1,32 @@
+#!/bin/bash
+
+pid=$(pidof dwmblocks)
+[ -n "$pid" ] || exit 1  # Exit if dwmblocks not running
+
+# sb-webcam (22)
+kill -44 "$pid"
+
+# sb-phone (8)
+kill -40 "$pid"
+
+# sb-usb (7)
+kill -39 "$pid"
+
+# sb-hdd-indicator (11)
+kill -45 "$pid"
+
+# sb-volume (10)
+kill -46 "$pid"
+
+# sb-clock (1)
+kill -35 "$pid"
+
+# sb-net (5)
+kill -39 "$pid"
+
+# sb-cpu (3) - optional
+# kill -37 "$pid"
+
+# sb-mem (4) - optional
+# kill -38 "$pid"
+
