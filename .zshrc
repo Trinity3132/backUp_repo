@@ -325,16 +325,7 @@ if [[ -x "$(command -v lazygit)" ]]; then
 fi
 
 # Alias for FZF
-# Link: https://github.com/junegunn/fzf
-if [[ -x "$(command -v fzf)" ]]; then
-    alias fzf='fzf --preview "bat --style=numbers --color=always --line-range :500 {}"'
-    # Alias to fuzzy find files in the current folder(s), preview them, and launch in an editor
-	if [[ -x "$(command -v xdg-open)" ]]; then
-		alias preview='open $(fzf --info=inline --query="${@}")'
-	else
-		alias preview='edit $(fzf --info=inline --query="${@}")'
-	fi
-fi
+alias ff="~/.local/bin/scripts/preview"
 
 # Get local IP addresses
 if [[ -x "$(command -v ip)" ]]; then
