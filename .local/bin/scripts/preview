@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Fuzzy finder with preview and smart opener
+
+# Use fd if available, otherwise fallback to find
+if command -v fd &>/dev/null; then
+    picker="fd --type f --type d --hidden --exclude .git"
+else
+    picker="find . -mindepth 1"
+fi
+
+
+file="$($picker | fzf \
+    --prompt="🔍 Select a file or directory: " \
+    --preview '([[ -f {} ]] && bat --style=numbers --color=always --line-range :500 {} \
+    || ([[ -d {} ]] && ls -la --color=always {} ) \
+    || ([[ {} =~ \.(zip|tar|gz|bz2|xz|7z)$ ]] && bsdtar -tf {} | head -100)) 2>/dev/null' \
+    --height=100% \
+    --layout=default \
+)"
+
+[ -z "$file" ] && exit 1  # exit if nothing chosen
+
+case "$file" in
+    # Directory → cd into it
+    */)
+        cd "$file" || exit
+        exec $SHELL
+        ;;
+
+    # Text / code files
+    *.txt|*.sh|*.py|*.c|*.cpp|*.h|*.json|*.md|*.toml|*.yaml|*.yml|*.conf|*.ini)
+        exec nvim "$file"
+        ;;
+
+    # Video files
+    *.mp4|*.mkv|*.avi|*.mov|*.flv|*.webm)
+        nohup mpv "$file" >/dev/null 2>&1 &
+        ;;
+
+    # Audio files
+    *.mp3|*.flac|*.wav|*.ogg|*.m4a)
+        nohup mpc add "$file" >/dev/null 2>&1 && mpc play >/dev/null 2>&1
+        ;;
+
+    # PDF
+    *.pdf)
+        nohup zathura "$file" >/dev/null 2>&1 &
+        ;;
+
+    # Office docs
+    *.doc|*.docx|*.xls|*.xlsx|*.ppt|*.pptx|*.odt|*.ods|*.odp)
+        nohup libreoffice "$file" >/dev/null 2>&1 &
+        ;;
+
+    # Images
+    *.jpg|*.jpeg|*.png|*.gif|*.bmp|*.svg|*.webp|*.avif|*.tiff)
+        nohup nsxiv "$file" >/dev/null 2>&1 &
+        ;;
+
+    # Archives → extract in current dir
+    *.zip|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz|*.tar.xz|*.txz|*.7z)
+        echo "Extracting $file ..."
+        bsdtar -xvf "$file"
+        ;;
+
+    # Default: try $EDITOR
+    *)
+        exec ${EDITOR:-nvim} "$file"
+        ;;
+esac
