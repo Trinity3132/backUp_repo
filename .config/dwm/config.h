@@ -200,6 +200,10 @@ static const Key keys[] = {
     /* screenshot keybindings */
     { MODKEY,                     XK_x,     spawn, SHCMD("st -e ~/.local/bin/scripts/screenshot.sh") },
     { MODKEY|ShiftMask,           XK_x,     spawn, SHCMD("st -e ~/.local/bin/scripts/screenshot.sh -s") },
+    { MODKEY|Mod1Mask,            XK_x,     spawn, SHCMD("st -e ~/.local/bin/scripts/recorder.sh") },            /* for recording screen */
+
+    /* finding files and opening in neovim */
+
 
     /* spawning btop */
     { MODKEY|Mod1Mask,            XK_b,     spawn,           SHCMD("st -e btop") },
@@ -229,11 +233,13 @@ static const Key keys[] = {
 	{ MODKEY,                     XK_s,     spawndefault,    {0} },
 
 	/* Fullscreen */
-	{ MODKEY|ShiftMask,           XK_f,     fullscreen,      {0} },
+	{ MODKEY|ControlMask,         XK_f,     fullscreen,      {0} },
+    
+    /* Toggle Follow */
+	{ MODKEY|ShiftMask,           XK_f,     togglefollow,    {0} },
 
-	/* Hidden Tags / Follow */
-	{ MODKEY,                     XK_v,     togglehidevacant,{0} },
-	{ MODKEY,                     XK_n,     togglefollow,    {0} },
+	/* Hidden tags */
+   	{ MODKEY,                     XK_v,     togglehidevacant,{0} },
 
 	/* Apps */
 	{ MODKEY|ControlMask,         XK_w,     spawn,           {.v = mullvad_browser } },
@@ -245,6 +251,8 @@ static const Key keys[] = {
 	{ MODKEY,                     XK_Return,spawn,           {.v = termcmd } },
 	{ MODKEY|ShiftMask,           XK_Return,spawn,           {.v = nvim } },
 	{ MODKEY|Mod1Mask,            XK_Return,spawn,           SHCMD("st -e ~/.local/bin/scripts/tmux-sessionizer") },
+	{ MODKEY|ShiftMask,           XK_n,     spawn,           SHCMD("st -e ~/.local/bin/scripts/zoxide_openfiles_nvim.sh") },
+	{ MODKEY|ControlMask,         XK_n,     spawn,           SHCMD("st -e ~/.local/bin/scripts/fzf_listoldfiles.sh") },
 
 
 	/* Window Management */
