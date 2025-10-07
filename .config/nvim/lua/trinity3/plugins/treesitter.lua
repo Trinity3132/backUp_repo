@@ -1,83 +1,72 @@
 return {
-    {
-        "nvim-treesitter/nvim-treesitter",
-        event = { "BufReadPre", "BufNewFile" },
-        build = ":TSUpdate",
-        config = function()
-            -- import nvim-treesitter plugin
-            local treesitter = require("nvim-treesitter.configs")
+	-- 🌳 Treesitter (core)
+	{
+		"nvim-treesitter/nvim-treesitter",
+		event = { "BufReadPre", "BufNewFile" },
+		build = ":TSUpdate",
+		config = function()
+			require("nvim-treesitter.configs").setup({
+				highlight = { enable = true },
+				indent = { enable = true },
+				ensure_installed = {
+					"html",
+					"css",
+					"javascript",
+					"typescript",
+					"tsx",
+					"lua",
+					"bash",
+					"json",
+					"yaml",
+					"markdown",
+					"vim",
+					"query",
+				},
+				incremental_selection = {
+					enable = true,
+					keymaps = {
+						init_selection = "<C-c>",
+						node_incremental = "<C-c>",
+						scope_incremental = false,
+					},
+				},
+				additional_vim_regex_highlighting = false,
+			})
+		end,
+	},
 
-            -- configure treesitter
-            treesitter.setup({ -- enable syntax highlighting
-                highlight = {
-                    enable = true,
-                },
-                -- enable indentation
-                indent = { enable = true },
+	-- 🏷️ Auto close + rename HTML/JSX tags
+	{
+		"windwp/nvim-ts-autotag",
+		event = "InsertEnter",
+		ft = { "html", "xml", "javascriptreact", "typescriptreact", "svelte", "vue" },
+		config = function()
+			require("nvim-ts-autotag").setup({
+				enable_close = true,
+				enable_rename = true,
+				enable_close_on_slash = false,
+			})
+		end,
+	},
 
-                -- ensure these languages parsers are installed
-                ensure_installed = {
-                    "json",
-                    "javascript",
-                    "typescript",
-                    "tsx",
-                    "go",
-                    "yaml",
-                    "html",
-                    "css",
-                    "python",
-                    "http",
-                    "prisma",
-                    "markdown",
-                    "markdown_inline",
-                    "svelte",
-                    "graphql",
-                    "bash",
-                    "lua",
-                    "vim",
-                    "dockerfile",
-                    "gitignore",
-                    "query",
-                    "vimdoc",
-                    "c",
-                    "java",
-                    "rust",
-                    "ron",
-                },
-                incremental_selection = {
-                    enable = true,
-                    keymaps = {
-                        init_selection = "<C-space>",
-                        node_incremental = "<C-space>",
-                        scope_incremental = false,
-                    },
-                },
-                additional_vim_regex_highlighting = false,
-            })
-        end,
-    },
-    -- NOTE: js,ts,jsx,tsx Auto Close Tags
-    {
-        "windwp/nvim-ts-autotag",
-        enabled = true,
-        ft = { "html", "xml", "javascript", "typescript", "javascriptreact", "typescriptreact", "svelte" },
-        config = function()
-            -- Independent nvim-ts-autotag setup
-            require("nvim-ts-autotag").setup({
-                opts = {
-                    enable_close = true,           -- Auto-close tags
-                    enable_rename = true,          -- Auto-rename pairs
-                    enable_close_on_slash = false, -- Disable auto-close on trailing `</`
-                },
-                per_filetype = {
-                    ["html"] = {
-                        enable_close = true, -- Disable auto-closing for HTML
-                    },
-                    ["typescriptreact"] = {
-                        enable_close = true, -- Explicitly enable auto-closing (optional, defaults to `true`)
-                    },
-                },
-            })
-        end,
-    },
-}
+	-- 📏 VS Code–like indent guides / tag connections
+	{
+		"lukas-reineke/indent-blankline.nvim",
+		main = "ibl",
+		event = { "BufReadPre", "BufNewFile" },
+		opts = {
+			indent = {
+				char = "│",
+				tab_char = "│",
+			},
+			scope = {
+				enabled = true,
+				show_start = true,
+				show_end = false,
+				highlight = "Function",
+			},
+		},
+		config = function(_, opts)
+			local hooks = require("ibl.hooks")
+			hooks.register(hooks.type.WHITESPACE, hooks.builtin.hide_first_space_indent_level)
+			require("ibl").setup(opts)
